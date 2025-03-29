@@ -179,7 +179,13 @@ class VirtualFileSystem:
                 if loaded_source:
                     return loaded_source
 
-        raise ValueError(f"Can't import {import_path} from {importer_source_unit_name}")
+        creator_options = {}
+        if self.compiler_version:
+            creator_options['version'] = self.compiler_version
+        else:
+            creator_options['version'] = Version(8, 0, 0)
+        partial_creator = partial(ast_helper.make_ast, **creator_options)
+        return LoadedSource(import_path, '', [], partial_creator) # just return the placeholder for the missing file
 
     def _add_loaded_source(self, source_unit_name: str, source_code: str, creator=None, origin=None) -> LoadedSource:
         if source_unit_name in self.sources:

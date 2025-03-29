@@ -1122,7 +1122,11 @@ class Builder2:
         current_scope = parent_scope
 
         # Process the node for new symbols or a new scope
-        scope_or_symbols = self.make_symbols_for_node(node, context, build_skeletons, visit_index)
+        try:
+            scope_or_symbols = self.make_symbols_for_node(node, context, build_skeletons, visit_index)
+        except Exception:
+            scope_or_symbols = None # we don't want to raise an exception here as it will break the entire AST processing
+            
         if scope_or_symbols is None:
             new_symbols = []
         elif isinstance(scope_or_symbols, list):
@@ -1133,6 +1137,7 @@ class Builder2:
             new_symbols = [scope_or_symbols]
         else:
             assert False, f'Invalid processing of {node} => {scope_or_symbols}'
+        
 
         # if it created a new scope, set the current scope to it so the nodes children are in that scope
         if isinstance(scope_or_symbols, Scope):
@@ -1544,19 +1549,21 @@ class Builder2:
                 return None
             elif isinstance(node, solnodes.SymbolImportDirective):
                 new_symbols = []
-                for idx, symbol_alias in enumerate(node.aliases):
-                    if symbol_alias.alias.text in node.scope.symbols:
-                        existing_symbols = node.scope.symbols[symbol_alias.alias.text]
-                        for sym in existing_symbols:
-                            if isinstance(sym, AliasImportSymbol):
-                                existing_import_alias = sym.value
-                                existing_symbol_alias = existing_import_alias.aliases[sym.alias_index]
-                                if existing_symbol_alias.symbol.text == symbol_alias.symbol.text and existing_import_alias.path == node.path:
-                                    # shallow check for duplicated symbol import statements
-                                    # TODO: proper error (and proper check?)
-                                    continue  # don't double add
-                    new_symbols.append(AliasImportSymbol(node, idx))
-                return new_symbols
+                try:
+                    for idx, symbol_alias in enumerate(node.aliases):
+                        if symbol_alias.alias.text in node.scope.symbols:
+                            existing_symbols = node.scope.symbols[symbol_alias.alias.text]
+                            for sym in existing_symbols:
+                                if isinstance(sym, AliasImportSymbol):
+                                    existing_import_alias = sym.value
+                                    existing_symbol_alias = existing_import_alias.aliases[sym.alias_index]
+                                    if existing_symbol_alias.symbol.text == symbol_alias.symbol.text and existing_import_alias.path == node.path:
+                                        # shallow check for duplicated symbol import statements
+                                        # TODO: proper error (and proper check?)
+                                        continue  # don't double add
+                        new_symbols.append(AliasImportSymbol(node, idx))
+                finally:
+                    return new_symbols
             elif isinstance(node, solnodes.UnitImportDirective):
                 # wrap this in a list as UnitImportSymbol is a scope and symbol and the caller will
                 # scope the next nodes as children of this which breaks some resolution stuff in ast2
